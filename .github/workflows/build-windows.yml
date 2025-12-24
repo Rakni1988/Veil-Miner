@@ -1,0 +1,124 @@
+name: build-windows
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    name: Windows x64 (OpenCL RX580)
+    runs-on: windows-2019
+
+    strategy:
+      fail-fast: false
+      matrix:
+        cfg:
+          - name: opencl
+            ETHASHCL: "ON"
+            ETHASHCUDA: "OFF"
+            ETHASHCPU: "OFF"
+          # CPU-only raczej zbędne dla progpow, ale zostawiam jako opcję
+          - name: cpu-only
+            ETHASHCL: "OFF"
+            ETHASHCUDA: "OFF"
+            ETHASHCPU: "ON"
+
+    env:
+      HUNTER_ROOT: ${{ github.workspace }}\.hunter
+      HUNTER_CONFIGURATION_TYPES: Release
+      HUNTER_JOBS_NUMBER: 6
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Strawberry Perl (required by README)
+        shell: pwsh
+        run: |
+          choco install strawberryperl -y
+          perl -v
+
+      - name: Cache Hunter
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ github.workspace }}\.hunter
+          key: hunter-${{ runner.os }}-${{ matrix.cfg.name }}-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake', '**/cmake/**') }}
+          restore-keys: |
+            hunter-${{ runner.os }}-${{ matrix.cfg.name }}-
+            hunter-${{ runner.os }}-
+
+      - name: Checkout Cable (ethereum/cable) into cmake/cable
+        uses: actions/checkout@v4
+        with:
+          repository: ethereum/cable
+          ref: master
+          path: veil-progpow-miner/cmake/cable
+          fetch-depth: 1
+
+      - name: Configure (CMake, VS 2019)
+        shell: pwsh
+        working-directory: veil-progpow-miner
+        run: |
+          mkdir build | Out-Null
+
+          $root = Join-Path $env:GITHUB_WORKSPACE "veil-progpow-miner"
+          $mod_cmake  = (Join-Path $root "cmake").Replace('\','/')
+          $mod_cable  = (Join-Path $root "cmake/cable").Replace('\','/')
+          $mod_share  = (Join-Path $root "cmake/cable/share/cmake").Replace('\','/')
+          $mod_cmake2 = (Join-Path $root "cmake/cable/cmake").Replace('\','/')
+          $modulePath = "$mod_share;$mod_cmake2;$mod_cable;$mod_cmake"
+
+          Write-Host "CMAKE_MODULE_PATH=$modulePath"
+
+          cmake -S . -B build -G "Visual Studio 16 2019" -A x64 `
+            -DCMAKE_MODULE_PATH="$modulePath" `
+            -DHUNTER_ROOT="$env:HUNTER_ROOT" `
+            -DETHASHCUDA=${{ matrix.cfg.ETHASHCUDA }} `
+            -DETHASHCL=${{ matrix.cfg.ETHASHCL }} `
+            -DETHASHCPU=${{ matrix.cfg.ETHASHCPU }} `
+            -DAPICORE=ON `
+            -DETHDBUS=OFF
+
+      - name: Build (Release)
+        shell: pwsh
+        working-directory: veil-progpow-miner
+        run: |
+          cmake --build build --config Release -- /m
+
+      - name: Package artifact
+        shell: pwsh
+        run: |
+          $out = Join-Path $env:GITHUB_WORKSPACE "dist"
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+          $buildRoot = Join-Path $env:GITHUB_WORKSPACE "veil-progpow-miner\build"
+          $exes = Get-ChildItem -Path $buildRoot -Recurse -Filter *.exe | Where-Object { $_.FullName -match '\\Release\\' }
+          if ($exes.Count -eq 0) {
+            Write-Host "No EXE found under veil-progpow-miner/build/**/Release. Listing build tree:"
+            Get-ChildItem -Path $buildRoot -Recurse | Select-Object FullName
+            throw "Build produced no .exe in Release output."
+          }
+
+          foreach ($e in $exes) { Copy-Item $e.FullName -Destination $out -Force }
+
+          $dlls = Get-ChildItem -Path $buildRoot -Recurse -Filter *.dll | Where-Object { $_.FullName -match '\\Release\\' }
+          foreach ($d in $dlls) { Copy-Item $d.FullName -Destination $out -Force }
+
+          $zipName = "veilminer-windows-x64-${{ matrix.cfg.name }}.zip"
+          $zipPath = Join-Path $env:GITHUB_WORKSPACE $zipName
+          if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+          Compress-Archive -Path "$out\*" -DestinationPath $zipPath
+
+          Write-Host "Created: $zipPath"
+          Get-ChildItem -Path $zipPath
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: veilminer-windows-x64-${{ matrix.cfg.name }}
+          path: veilminer-windows-x64-${{ matrix.cfg.name }}.zip
