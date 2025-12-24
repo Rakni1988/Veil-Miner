@@ -498,6 +498,12 @@ void CLMiner::enumDevices(std::map<string, DeviceDescriptor>& _DevicesCollection
         std::cout << "[DBG][CL] Platform[" << pIdx << "] devices=" << devices.size() << std::endl;
         for (auto const& device : devices)
         {
+            std::string deviceName;
+            try {
+                deviceName = device.getInfo<CL_DEVICE_NAME>();
+            } catch (...) {
+                deviceName = "<unknown>";
+            }
             DeviceTypeEnum clDeviceType = DeviceTypeEnum::Unknown;
             cl_device_type detectedType = device.getInfo<CL_DEVICE_TYPE>();
             if (detectedType == CL_DEVICE_TYPE_GPU)
