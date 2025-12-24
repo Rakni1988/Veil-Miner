@@ -491,22 +491,87 @@ public:
 
     void execute()
     {
+        // --- DEBUG: device enumeration / miner type ---
+        try {
+            std::cout << "[DBG] execute(): minerType=" << static_cast<int>(m_minerType)
+                      << " (0=Mixed? 1=CL? 2=CUDA? 3=CPU?)" << std::endl;
+#if ETH_ETHASHCL
+            std::cout << "[DBG] build: ETH_ETHASHCL=ON" << std::endl;
+#else
+            std::cout << "[DBG] build: ETH_ETHASHCL=OFF" << std::endl;
+#endif
+#if ETH_ETHASHCUDA
+            std::cout << "[DBG] build: ETH_ETHASHCUDA=ON" << std::endl;
+#else
+            std::cout << "[DBG] build: ETH_ETHASHCUDA=OFF" << std::endl;
+#endif
+#if ETH_ETHASHCPU
+            std::cout << "[DBG] build: ETH_ETHASHCPU=ON" << std::endl;
+#else
+            std::cout << "[DBG] build: ETH_ETHASHCPU=OFF" << std::endl;
+#endif
+        } catch (...) {
+            // no-op
+        }
+
 #if ETH_ETHASHCL
         if (m_minerType == MinerType::CL || m_minerType == MinerType::Mixed)
-            CLMiner::enumDevices(m_DevicesCollection);
+            {
+            const size_t _before = m_DevicesCollection.size();
+            std::cout << "[DBG] enumDevices(OpenCL) start, devices(before)=" << _before << std::endl;
+            try {
+                CLMiner::enumDevices(m_DevicesCollection);
+            } catch (const std::exception& e) {
+                std::cout << "[DBG] enumDevices(OpenCL) threw: " << e.what() << std::endl;
+            } catch (...) {
+                std::cout << "[DBG] enumDevices(OpenCL) threw: <unknown>" << std::endl;
+            }
+            const size_t _after = m_DevicesCollection.size();
+            std::cout << "[DBG] enumDevices(OpenCL) end, devices(after)=" << _after
+                      << " added=" << (_after - _before) << std::endl;
+        }
 #endif
 #if ETH_ETHASHCUDA
         if (m_minerType == MinerType::CUDA || m_minerType == MinerType::Mixed)
-            CUDAMiner::enumDevices(m_DevicesCollection);
+            {
+            const size_t _before = m_DevicesCollection.size();
+            std::cout << "[DBG] enumDevices(CUDA) start, devices(before)=" << _before << std::endl;
+            try {
+                CUDAMiner::enumDevices(m_DevicesCollection);
+            } catch (const std::exception& e) {
+                std::cout << "[DBG] enumDevices(CUDA) threw: " << e.what() << std::endl;
+            } catch (...) {
+                std::cout << "[DBG] enumDevices(CUDA) threw: <unknown>" << std::endl;
+            }
+            const size_t _after = m_DevicesCollection.size();
+            std::cout << "[DBG] enumDevices(CUDA) end, devices(after)=" << _after
+                      << " added=" << (_after - _before) << std::endl;
+        }
 #endif
 #if ETH_ETHASHCPU
         if (m_minerType == MinerType::CPU)
-            CPUMiner::enumDevices(m_DevicesCollection);
+            {
+            const size_t _before = m_DevicesCollection.size();
+            std::cout << "[DBG] enumDevices(CPU) start, devices(before)=" << _before << std::endl;
+            try {
+                CPUMiner::enumDevices(m_DevicesCollection);
+            } catch (const std::exception& e) {
+                std::cout << "[DBG] enumDevices(CPU) threw: " << e.what() << std::endl;
+            } catch (...) {
+                std::cout << "[DBG] enumDevices(CPU) threw: <unknown>" << std::endl;
+            }
+            const size_t _after = m_DevicesCollection.size();
+            std::cout << "[DBG] enumDevices(CPU) end, devices(after)=" << _after
+                      << " added=" << (_after - _before) << std::endl;
+        }
 #endif
 
         // Can't proceed without any GPU
-        if (!m_DevicesCollection.size())
+        if (!m_DevicesCollection.size()) {
+            std::cout << "[DBG] No devices in collection after enumeration. "
+                      << "Try: -G/--opencl for OpenCL, -U for CUDA, or check OpenCL/CUDA runtime." << std::endl;
             throw std::runtime_error("No usable mining devices found");
+        }
 
         // If requested list detected devices and exit
         if (m_shouldListDevices)
