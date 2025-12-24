@@ -219,15 +219,16 @@ std::vector<cl::Platform> getPlatforms()
     try
     {
         cl::Platform::get(&platforms);
+        std::cout << "[DBG][CL] getPlatforms(): count=" << platforms.size() << std::endl;
     }
     catch (cl::Error const& err)
     {
 #if defined(CL_PLATFORM_NOT_FOUND_KHR)
         if (err.err() == CL_PLATFORM_NOT_FOUND_KHR)
-            std::cerr << "No OpenCL platforms found" << std::endl;
+            std::cerr << "[DBG][CL] No OpenCL platforms found (CL_PLATFORM_NOT_FOUND_KHR)" << std::endl;
         else
 #endif
-            std::cerr << "OpenCL error : " << err.what();
+            std::cerr << "[DBG][CL] OpenCL error in getPlatforms(): " << err.what() << " err=" << err.err() << std::endl;
     }
     return platforms;
 }
@@ -236,11 +237,13 @@ std::vector<cl::Device> getDevices(
     std::vector<cl::Platform> const& _platforms, unsigned _platformId)
 {
     vector<cl::Device> devices;
+    std::cout << "[DBG][CL] getDevices(): platformId=" << _platformId << " platforms=" << _platforms.size() << std::endl;
     size_t platform_num = min<size_t>(_platformId, _platforms.size() - 1);
     try
     {
         _platforms[platform_num].getDevices(
             CL_DEVICE_TYPE_GPU | CL_DEVICE_TYPE_ACCELERATOR, &devices);
+        std::cout << "[DBG][CL] getDevices(): found devices=" << devices.size() << std::endl;
     }
     catch (cl::Error const& err)
     {
@@ -461,13 +464,19 @@ void CLMiner::enumDevices(std::map<string, DeviceDescriptor>& _DevicesCollection
 {
     // Load available platforms
     vector<cl::Platform> platforms = getPlatforms();
-    if (platforms.empty())
+    std::cout << "[DBG][CL] enumDevices(): platforms=" << platforms.size() << std::endl;
+    if (platforms.empty()) {
+        std::cout << "[DBG][CL] enumDevices(): no platforms -> return" << std::endl;
         return;
+    }
 
     unsigned int dIdx = 0;
     for (unsigned int pIdx = 0; pIdx < platforms.size(); pIdx++)
     {
         std::string platformName = platforms.at(pIdx).getInfo<CL_PLATFORM_NAME>();
+        std::string platformVendor = platforms.at(pIdx).getInfo<CL_PLATFORM_VENDOR>();
+        std::string platformVersion = platforms.at(pIdx).getInfo<CL_PLATFORM_VERSION>();
+        std::cout << "[DBG][CL] Platform[" << pIdx << "] name='" << platformName << "' vendor='" << platformVendor << "' version='" << platformVersion << "'" << std::endl;
         ClPlatformTypeEnum platformType = ClPlatformTypeEnum::Unknown;
         if (platformName == "AMD Accelerated Parallel Processing")
             platformType = ClPlatformTypeEnum::Amd;
@@ -477,17 +486,16 @@ void CLMiner::enumDevices(std::map<string, DeviceDescriptor>& _DevicesCollection
             platformType = ClPlatformTypeEnum::Nvidia;
         else
         {
-            std::cerr << "Unrecognized platform " << platformName << std::endl;
+            std::cerr << "[DBG][CL] Unrecognized platform '" << platformName << "' -> skip" << std::endl;
             continue;
         }
 
-
-        std::string platformVersion = platforms.at(pIdx).getInfo<CL_PLATFORM_VERSION>();
         unsigned int platformVersionMajor = std::stoi(platformVersion.substr(7, 1));
         unsigned int platformVersionMinor = std::stoi(platformVersion.substr(9, 1));
 
         dIdx = 0;
         vector<cl::Device> devices = getDevices(platforms, pIdx);
+        std::cout << "[DBG][CL] Platform[" << pIdx << "] devices=" << devices.size() << std::endl;
         for (auto const& device : devices)
         {
             DeviceTypeEnum clDeviceType = DeviceTypeEnum::Unknown;
@@ -538,10 +546,16 @@ void CLMiner::enumDevices(std::map<string, DeviceDescriptor>& _DevicesCollection
             else
             {
                 // We're not prepared (yet) to handle other platforms or types
+                std::cout << "[DBG][CL]  REJECT device '" << deviceName << "' type=" << (int)clDeviceType
+                          << " platformType=" << (int)platformType << " (unsupported)" << std::endl;
                 ++dIdx;
                 continue;
             }
 
+           if (_DevicesCollection.find(uniqueId) != _DevicesCollection.end())
+           {
+                std::cout << "[DBG][CL]  DUP device uniqueId=" << uniqueId << " -> skip" << std::endl;
+           }
            if (_DevicesCollection.find(uniqueId) != _DevicesCollection.end())
                 deviceDescriptor = _DevicesCollection[uniqueId];
             else
