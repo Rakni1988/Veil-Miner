@@ -236,21 +236,60 @@ std::vector<cl::Platform> getPlatforms()
 std::vector<cl::Device> getDevices(
     std::vector<cl::Platform> const& _platforms, unsigned _platformId)
 {
-    vector<cl::Device> devices;
+    std::vector<cl::Device> devices;
     std::cout << "[DBG][CL] getDevices(): platformId=" << _platformId << " platforms=" << _platforms.size() << std::endl;
-    size_t platform_num = min<size_t>(_platformId, _platforms.size() - 1);
+
+    if (_platforms.empty())
+        return devices;
+
+    size_t platform_num = std::min<size_t>(_platformId, _platforms.size() - 1);
+
+    auto dump_devices = [&](char const* tag)
+    {
+        std::cout << "[DBG][CL] " << tag << " devices=" << devices.size() << std::endl;
+        for (size_t i = 0; i < devices.size(); ++i)
+        {
+            std::string name = devices[i].getInfo<CL_DEVICE_NAME>();
+            std::string vendor = devices[i].getInfo<CL_DEVICE_VENDOR>();
+            std::string devver = devices[i].getInfo<CL_DEVICE_VERSION>();
+            std::string cver = devices[i].getInfo<CL_DEVICE_OPENCL_C_VERSION>();
+            cl_device_type dtype = devices[i].getInfo<CL_DEVICE_TYPE>();
+            std::cout << "[DBG][CL]  Dev[" << i << "] name='" << name << "' vendor='" << vendor
+                      << "' devver='" << devver << "' cver='" << cver
+                      << "' type=0x" << std::hex << (unsigned long long)dtype << std::dec << std::endl;
+        }
+    };
+
+    // 1) Prefer GPU/ACCELERATOR (legacy ethminer style)
     try
     {
-        _platforms[platform_num].getDevices(
-            CL_DEVICE_TYPE_GPU | CL_DEVICE_TYPE_ACCELERATOR, &devices);
-        std::cout << "[DBG][CL] getDevices(): found devices=" << devices.size() << std::endl;
+        _platforms[platform_num].getDevices(CL_DEVICE_TYPE_GPU | CL_DEVICE_TYPE_ACCELERATOR, &devices);
+        dump_devices("getDevices(GPU|ACCEL)");
     }
     catch (cl::Error const& err)
     {
-        // if simply no devices found return empty vector
-        if (err.err() != CL_DEVICE_NOT_FOUND)
-            throw err;
+        std::cout << "[DBG][CL] getDevices(GPU|ACCEL) cl::Error code=" << err.err()
+                  << " what=" << err.what() << std::endl;
+        // CL_DEVICE_NOT_FOUND => continue to fallback
+        devices.clear();
     }
+
+    // 2) Fallback: some runtimes report devices only via ALL/DEFAULT
+    if (devices.empty())
+    {
+        try
+        {
+            _platforms[platform_num].getDevices(CL_DEVICE_TYPE_ALL, &devices);
+            dump_devices("getDevices(ALL)");
+        }
+        catch (cl::Error const& err)
+        {
+            std::cout << "[DBG][CL] getDevices(ALL) cl::Error code=" << err.err()
+                      << " what=" << err.what() << std::endl;
+            devices.clear();
+        }
+    }
+
     return devices;
 }
 
