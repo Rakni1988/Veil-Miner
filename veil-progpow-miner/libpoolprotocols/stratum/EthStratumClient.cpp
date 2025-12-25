@@ -3,9 +3,6 @@
 #include <ethash/ethash.hpp>
 #include <libpoolprotocols/stratum/arith_uint256.h>
 
-#include <sstream>
-#include <iomanip>
-
 #include "EthStratumClient.h"
 
 #ifdef _WIN32
@@ -1365,21 +1362,16 @@ void EthStratumClient::processResponse(Json::Value& responseObject)
 
                     if (haveVeilEpoch)
                     {
-                        // compute seedhash from epoch (ethash standard)
-                        ethash::hash256 seed = ethash::calculate_seedhash(veilEpoch);
-
-                        auto toHex = [](const ethash::hash256& h) -> std::string {
-                            std::ostringstream oss;
-                            oss << std::hex << std::setfill('0');
-                            for (uint8_t b : h.bytes)
-                                oss << std::setw(2) << (int)b;
-                            return oss.str();
-                        };
-
-                        sSeedHash = "0x" + toHex(seed);
+                        // Veil reduced-DAG: epoch comes from pool (pprpcepoch)
+                        m_current.epoch = veilEpoch;
 
                         // (INFO)
-                        cnote << "VEIL epoch override: epoch=" << veilEpoch << " seed=" << sSeedHash;
+                        cnote << "VEIL epoch override: epoch=" << veilEpoch;
+                    }
+                    else
+                    {
+                        // keep default behavior (epoch may be derived elsewhere / left as-is)
+                        // NOTE: you can optionally derive epoch from block height here if you want.
                     }
 
                     arith_uint256 hashTarget = arith_uint256().SetCompact(nBlockTargetBits);
@@ -1416,7 +1408,6 @@ void EthStratumClient::processResponse(Json::Value& responseObject)
                     m_current_timestamp = std::chrono::steady_clock::now();
                     m_current.startNonce = m_session->extraNonce;
                     m_current.block = iBlockHeight;
-                    m_current.epoch = veilEpoch;
 
                     // This will signal to dispatch the job
                     // at the end of the transmission.
