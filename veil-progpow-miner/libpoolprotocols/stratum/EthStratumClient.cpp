@@ -3,6 +3,8 @@
 #include <ethash/ethash.hpp>
 #include <libpoolprotocols/stratum/arith_uint256.h>
 
+#include <sstream>
+#include <iomanip>
 
 #include "EthStratumClient.h"
 
@@ -1327,7 +1329,58 @@ void EthStratumClient::processResponse(Json::Value& responseObject)
                     string sShareTarget = jPrm.get(Json::Value::ArrayIndex(prmIdx++), "").asString();
                     bool fCancelJob = jPrm.get(Json::Value::ArrayIndex(prmIdx++), "").asBool();
                     uint64_t iBlockHeight = jPrm.get(Json::Value::ArrayIndex(prmIdx++), "").asInt64();
-                    uint32_t nBlockTargetBits =  strtoul(jPrm.get(Json::Value::ArrayIndex(prmIdx++), "").asString().c_str(), nullptr, 16);
+
+                    auto vBits = jPrm.get(Json::Value::ArrayIndex(prmIdx++), Json::Value::null);
+                    std::string sBits = vBits.isString() ? vBits.asString() : vBits.toStyledString();
+                    uint32_t nBlockTargetBits = strtoul(sBits.c_str(), nullptr, 16);
+
+
+                    // ---- VEIL EXT: epoch override (pprpcepoch) ----
+                    // Expected extra params after bits:
+                    //   [epoch, next_epoch, next_epoch_height]  (we only need epoch)
+                    uint32_t veilEpoch = 0;
+                    bool haveVeilEpoch = false;
+
+                    if (jPrm.isArray() && jPrm.size() > prmIdx)
+                    {
+                        const Json::Value& vEpoch = jPrm.get(Json::Value::ArrayIndex(prmIdx), Json::Value::null);
+
+                        try
+                        {
+                            if (vEpoch.isUInt() || vEpoch.isInt64() || vEpoch.isInt())
+                            {
+                                veilEpoch = static_cast<uint32_t>(vEpoch.asUInt());
+                                haveVeilEpoch = true;
+                            }
+                            else if (vEpoch.isString())
+                            {
+                                std::string s = vEpoch.asString();
+                                // allow "0x.." or decimal
+                                veilEpoch = static_cast<uint32_t>(std::stoul(s, nullptr, 0));
+                                haveVeilEpoch = true;
+                            }
+                        }
+                        catch (...) { /* ignore */ }
+                    }
+
+                    if (haveVeilEpoch)
+                    {
+                        // compute seedhash from epoch (ethash standard)
+                        ethash::hash256 seed = ethash::calculate_seedhash(veilEpoch);
+
+                        auto toHex = [](const ethash::hash256& h) -> std::string {
+                            std::ostringstream oss;
+                            oss << std::hex << std::setfill('0');
+                            for (uint8_t b : h.bytes)
+                                oss << std::setw(2) << (int)b;
+                            return oss.str();
+                        };
+
+                        sSeedHash = "0x" + toHex(seed);
+
+                        // (INFO)
+                        cnote << "VEIL epoch override: epoch=" << veilEpoch << " seed=" << sSeedHash;
+                    }
 
                     arith_uint256 hashTarget = arith_uint256().SetCompact(nBlockTargetBits);
                     std::string sBlockTarget = hashTarget.GetHex();
@@ -1363,6 +1416,7 @@ void EthStratumClient::processResponse(Json::Value& responseObject)
                     m_current_timestamp = std::chrono::steady_clock::now();
                     m_current.startNonce = m_session->extraNonce;
                     m_current.block = iBlockHeight;
+                    m_current.epoch = veilEpoch;
 
                     // This will signal to dispatch the job
                     // at the end of the transmission.
