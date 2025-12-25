@@ -90,6 +90,25 @@ jobs:
         run: |
           cmake --build build --config Release -- /m
 
+      - name: Dump ethash/progpow headers from Hunter
+        shell: pwsh
+        working-directory: veil-progpow-miner
+        run: |
+          $hunter = Join-Path $env:GITHUB_WORKSPACE "veil-progpow-miner\.hunter"
+          $out = Join-Path $env:GITHUB_WORKSPACE "dist"
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+          $ethash = Get-ChildItem -Path $hunter -Recurse -Filter ethash.hpp -ErrorAction SilentlyContinue | Select-Object -First 1
+          $progpow = Get-ChildItem -Path $hunter -Recurse -Filter progpow.hpp -ErrorAction SilentlyContinue | Select-Object -First 1
+          $hash_types = Get-ChildItem -Path $hunter -Recurse -Filter hash_types.hpp -ErrorAction SilentlyContinue | Select-Object -First 1
+
+          if ($ethash) { Copy-Item $ethash.FullName -Destination (Join-Path $out "ethash.hpp") -Force }
+          if ($progpow) { Copy-Item $progpow.FullName -Destination (Join-Path $out "progpow.hpp") -Force }
+          if ($hash_types) { Copy-Item $hash_types.FullName -Destination (Join-Path $out "hash_types.hpp") -Force }
+
+          Write-Host "Dumped:"
+          Get-ChildItem -Path $out | Select-Object Name, Length
+
       - name: Package artifact
         shell: pwsh
         run: |
