@@ -92,15 +92,26 @@ jobs:
 
       - name: Dump ethash/progpow headers from Hunter
         shell: pwsh
-        working-directory: veil-progpow-miner
         run: |
-          $hunter = Join-Path $env:GITHUB_WORKSPACE "veil-progpow-miner\.hunter"
+          $hunter = $env:HUNTER_ROOT
+          if (-not $hunter) {
+            $hunter = Join-Path $env:GITHUB_WORKSPACE ".hunter"
+          }
+
           $out = Join-Path $env:GITHUB_WORKSPACE "dist"
           New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+          Write-Host "HUNTER_ROOT=$hunter"
+          if (!(Test-Path $hunter)) { throw "Hunter root not found: $hunter" }
 
           $ethash = Get-ChildItem -Path $hunter -Recurse -Filter ethash.hpp -ErrorAction SilentlyContinue | Select-Object -First 1
           $progpow = Get-ChildItem -Path $hunter -Recurse -Filter progpow.hpp -ErrorAction SilentlyContinue | Select-Object -First 1
           $hash_types = Get-ChildItem -Path $hunter -Recurse -Filter hash_types.hpp -ErrorAction SilentlyContinue | Select-Object -First 1
+
+          Write-Host "Found:"
+          if ($ethash) { Write-Host " ethash.hpp: $($ethash.FullName)" } else { Write-Host " ethash.hpp: NOT FOUND" }
+          if ($progpow) { Write-Host " progpow.hpp: $($progpow.FullName)" } else { Write-Host " progpow.hpp: NOT FOUND" }
+          if ($hash_types) { Write-Host " hash_types.hpp: $($hash_types.FullName)" } else { Write-Host " hash_types.hpp: NOT FOUND" }
 
           if ($ethash) { Copy-Item $ethash.FullName -Destination (Join-Path $out "ethash.hpp") -Force }
           if ($progpow) { Copy-Item $progpow.FullName -Destination (Join-Path $out "progpow.hpp") -Force }
