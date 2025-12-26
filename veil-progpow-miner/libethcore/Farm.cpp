@@ -198,12 +198,32 @@ void Farm::setWork(WorkPackage const& _newWp)
     if (m_currentWp.epoch != _newWp.epoch)
     {
         ethash::epoch_context _ec = ethash::get_global_epoch_context(_newWp.epoch);
-        m_currentEc.epochNumber = _newWp.epoch;
-        m_currentEc.lightNumItems = _ec.light_cache_num_items;
-        m_currentEc.lightSize = ethash::get_light_cache_size(_ec.light_cache_num_items);
-        m_currentEc.dagNumItems = ethash::calculate_full_dataset_num_items(_newWp.epoch);
-        m_currentEc.dagSize = ethash::get_full_dataset_size(m_currentEc.dagNumItems);
-        m_currentEc.lightCache = _ec.light_cache;
+
+        // --- CALCULATIONS ---
+        auto light_items = _ec.light_cache_num_items;
+        auto light_size  = ethash::get_light_cache_size(light_items);
+
+        auto dag_items = ethash::calculate_full_dataset_num_items(_newWp.epoch);
+        auto dag_size  = ethash::get_full_dataset_size(dag_items);
+
+        auto seed = ethash::calculate_epoch_seed(_newWp.epoch);
+
+        // --- LOGGING ---
+        cnote << "[EPOCH INIT]"
+              << " epoch=" << _newWp.epoch
+              << " light_items=" << light_items
+              << " light_size_MB=" << (light_size / (1024 * 1024))
+              << " dag_items=" << dag_items
+              << " dag_size_MB=" << (dag_size / (1024 * 1024))
+              << " seed=" << toHexSeed(seed);
+
+        // --- APPLY CONTEXT ---
+        m_currentEc.epochNumber  = _newWp.epoch;
+        m_currentEc.lightNumItems = light_items;
+        m_currentEc.lightSize     = light_size;
+        m_currentEc.dagNumItems   = dag_items;
+        m_currentEc.dagSize       = dag_size;
+        m_currentEc.lightCache    = _ec.light_cache;
 
         for (auto const& miner : m_miners)
             miner->setEpoch(m_currentEc);
