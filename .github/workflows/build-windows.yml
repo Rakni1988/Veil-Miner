@@ -97,26 +97,31 @@ jobs:
           if (-not $hunter) {
             $hunter = Join-Path $env:GITHUB_WORKSPACE ".hunter"
           }
-
           $out = Join-Path $env:GITHUB_WORKSPACE "dist"
           New-Item -ItemType Directory -Force -Path $out | Out-Null
-
           Write-Host "HUNTER_ROOT=$hunter"
           if (!(Test-Path $hunter)) { throw "Hunter root not found: $hunter" }
-
-          $ethash = Get-ChildItem -Path $hunter -Recurse -Filter ethash.hpp -ErrorAction SilentlyContinue | Select-Object -First 1
-          $progpow = Get-ChildItem -Path $hunter -Recurse -Filter progpow.hpp -ErrorAction SilentlyContinue | Select-Object -First 1
-          $hash_types = Get-ChildItem -Path $hunter -Recurse -Filter hash_types.hpp -ErrorAction SilentlyContinue | Select-Object -First 1
-
+      
+          $ethash_hpp  = Get-ChildItem -Path $hunter -Recurse -Filter ethash.hpp      -ErrorAction SilentlyContinue | Select-Object -First 1
+          $progpow_hpp = Get-ChildItem -Path $hunter -Recurse -Filter progpow.hpp     -ErrorAction SilentlyContinue | Select-Object -First 1
+          $hash_types_hpp = Get-ChildItem -Path $hunter -Recurse -Filter hash_types.hpp -ErrorAction SilentlyContinue | Select-Object -First 1
+      
+          $ethash_h    = Get-ChildItem -Path $hunter -Recurse -Filter ethash.h        -ErrorAction SilentlyContinue | Select-Object -First 1
+          $hash_types_h = Get-ChildItem -Path $hunter -Recurse -Filter hash_types.h   -ErrorAction SilentlyContinue | Select-Object -First 1
+      
           Write-Host "Found:"
-          if ($ethash) { Write-Host " ethash.hpp: $($ethash.FullName)" } else { Write-Host " ethash.hpp: NOT FOUND" }
-          if ($progpow) { Write-Host " progpow.hpp: $($progpow.FullName)" } else { Write-Host " progpow.hpp: NOT FOUND" }
-          if ($hash_types) { Write-Host " hash_types.hpp: $($hash_types.FullName)" } else { Write-Host " hash_types.hpp: NOT FOUND" }
-
-          if ($ethash) { Copy-Item $ethash.FullName -Destination (Join-Path $out "ethash.hpp") -Force }
-          if ($progpow) { Copy-Item $progpow.FullName -Destination (Join-Path $out "progpow.hpp") -Force }
-          if ($hash_types) { Copy-Item $hash_types.FullName -Destination (Join-Path $out "hash_types.hpp") -Force }
-
+          if ($ethash_hpp) { Write-Host " ethash.hpp: $($ethash_hpp.FullName)" } else { Write-Host " ethash.hpp: NOT FOUND" }
+          if ($progpow_hpp) { Write-Host " progpow.hpp: $($progpow_hpp.FullName)" } else { Write-Host " progpow.hpp: NOT FOUND" }
+          if ($hash_types_hpp) { Write-Host " hash_types.hpp: $($hash_types_hpp.FullName)" } else { Write-Host " hash_types.hpp: NOT FOUND" }
+          if ($ethash_h) { Write-Host " ethash.h: $($ethash_h.FullName)" } else { Write-Host " ethash.h: NOT FOUND" }
+          if ($hash_types_h) { Write-Host " hash_types.h: $($hash_types_h.FullName)" } else { Write-Host " hash_types.h: NOT FOUND" }
+      
+          if ($ethash_hpp) { Copy-Item $ethash_hpp.FullName -Destination (Join-Path $out "ethash.hpp") -Force }
+          if ($progpow_hpp) { Copy-Item $progpow_hpp.FullName -Destination (Join-Path $out "progpow.hpp") -Force }
+          if ($hash_types_hpp) { Copy-Item $hash_types_hpp.FullName -Destination (Join-Path $out "hash_types.hpp") -Force }
+          if ($ethash_h) { Copy-Item $ethash_h.FullName -Destination (Join-Path $out "ethash.h") -Force }
+          if ($hash_types_h) { Copy-Item $hash_types_h.FullName -Destination (Join-Path $out "hash_types.h") -Force }
+      
           Write-Host "Dumped:"
           Get-ChildItem -Path $out | Select-Object Name, Length
 
