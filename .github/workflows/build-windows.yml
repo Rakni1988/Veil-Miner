@@ -63,11 +63,10 @@ jobs:
 
           Write-Host "Hunter root: $hunter"
 
-          # Usuń katalogi ethash w _Base/Download, _Base/Build, _Base/Install (nie bawimy się w -like na FullName)
           $targets = @(
-            Join-Path $hunter "_Base\Download\ethash",
-            Join-Path $hunter "_Base\Build\ethash",
-            Join-Path $hunter "_Base\Install\ethash"
+            "$hunter\_Base\Download\ethash",
+            "$hunter\_Base\Build\ethash",
+            "$hunter\_Base\Install\ethash"
           )
 
           foreach ($t in $targets) {
@@ -79,13 +78,15 @@ jobs:
             }
           }
 
-          # Dodatkowo: usuń wszelkie katalogi, które mają ethash w nazwie pod _Base (czasem paczka jest w hashowanych folderach)
-          Get-ChildItem -Path (Join-Path $hunter "_Base") -Recurse -Directory -Force -ErrorAction SilentlyContinue |
-            Where-Object { $_.FullName -match "\\ethash(\\|$)" } |
-            ForEach-Object {
-              Write-Host "Removing extra: $($_.FullName)"
-              Remove-Item -Recurse -Force $_.FullName -ErrorAction SilentlyContinue
-            }
+          $base = "$hunter\_Base"
+          if (Test-Path $base) {
+            Get-ChildItem -Path $base -Recurse -Directory -Force -ErrorAction SilentlyContinue |
+              Where-Object { $_.FullName -match "\\ethash(\\|$)" } |
+              ForEach-Object {
+                Write-Host "Removing extra: $($_.FullName)"
+                Remove-Item -Recurse -Force $_.FullName -ErrorAction SilentlyContinue
+              }
+          }
 
           Write-Host "Done purge."
 
