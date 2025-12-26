@@ -30,6 +30,19 @@
 #include <libethash-cpu/CPUMiner.h>
 #endif
 
+#include <cstdint>
+#include <sstream>
+#include <iomanip>
+
+static std::string bytesToHex(const uint8_t* data, size_t size)
+{
+    std::ostringstream ss;
+    ss << std::hex << std::setfill('0');
+    for (size_t i = 0; i < size; ++i)
+        ss << std::setw(2) << static_cast<unsigned>(data[i]);
+    return ss.str();
+}
+
 namespace dev
 {
 namespace eth
@@ -215,7 +228,7 @@ void Farm::setWork(WorkPackage const& _newWp)
               << " light_size_MB=" << (light_size / (1024 * 1024))
               << " dag_items=" << dag_items
               << " dag_size_MB=" << (dag_size / (1024 * 1024))
-              << " seed=" << toHexSeed(seed);
+              << " seed=" << bytesToHex(seed.bytes, 32);
 
         // --- APPLY CONTEXT ---
         m_currentEc.epochNumber  = _newWp.epoch;
