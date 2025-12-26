@@ -1362,11 +1362,23 @@ void EthStratumClient::processResponse(Json::Value& responseObject)
 
                     if (haveVeilEpoch)
                     {
-                        // Veil reduced-DAG: epoch comes from pool (pprpcepoch)
                         m_current.epoch = veilEpoch;
 
-                        // (INFO)
-                        cnote << "VEIL epoch override: epoch=" << veilEpoch;
+                        const ethash::hash256 seed = ethash::calculate_epoch_seed(veilEpoch);
+
+                        auto toHex = [](const ethash::hash256& h) -> std::string {
+                            static const char* hexd = "0123456789abcdef";
+                            std::string out; out.reserve(64);
+                            for (uint8_t b : h.bytes) {
+                                out.push_back(hexd[(b >> 4) & 0xF]);
+                                out.push_back(hexd[b & 0xF]);
+                            }
+                            return out;
+                        };
+
+                        sSeedHash = "0x" + toHex(seed);
+
+                        cnote << "VEIL epoch override: epoch=" << veilEpoch << " seed=" << sSeedHash;
                     }
                     else
                     {
