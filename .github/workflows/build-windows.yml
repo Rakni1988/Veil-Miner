@@ -47,10 +47,24 @@ jobs:
         with:
           path: |
             ${{ github.workspace }}\.hunter
-          key: hunter-${{ runner.os }}-${{ matrix.cfg.name }}-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake', '**/cmake/**') }}
+          key: hunter-${{ runner.os }}-${{ matrix.cfg.name }}-${{ hashFiles('veil-progpow-miner/cmake/Hunter/config.cmake', '**/CMakeLists.txt', '**/*.cmake') }}
           restore-keys: |
             hunter-${{ runner.os }}-${{ matrix.cfg.name }}-
             hunter-${{ runner.os }}-
+
+      - name: Purge cached ethash build (force rebuild)
+        shell: pwsh
+        run: |
+          $hunter = "$env:GITHUB_WORKSPACE\.hunter"
+          if (!(Test-Path $hunter)) { exit 0 }
+
+          Write-Host "Purging ethash from Hunter cache (if present)..."
+          Get-ChildItem -Path $hunter -Recurse -Directory -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match '\\_Base\\(Build|Download)\\' -and $_.Name -ieq 'ethash' } |
+            ForEach-Object {
+              Write-Host "Removing: $($_.FullName)"
+              Remove-Item -Recurse -Force $_.FullName
+            }
 
       - name: Checkout Cable (ethereum/cable) into cmake/cable
         uses: actions/checkout@v4
@@ -60,7 +74,7 @@ jobs:
           path: veil-progpow-miner/cmake/cable
           fetch-depth: 1
 
-      - name: Configure (CMake, VS 2019) [source=veilminer]
+      - name: Configure (CMake, VS 2019)
         shell: pwsh
         working-directory: veil-progpow-miner
         run: |
@@ -78,7 +92,7 @@ jobs:
           Write-Host "CMAKE_MODULE_PATH=$modulePath"
           Write-Host "HUNTER_CONFIG_FILE=$hunterCfg"
 
-          cmake -S veilminer -B build -G "Visual Studio 16 2019" -A x64 `
+          cmake -S . -B build -G "Visual Studio 16 2019" -A x64 `
             -DCMAKE_MODULE_PATH="$modulePath" `
             -DHUNTER_ROOT="$env:HUNTER_ROOT" `
             -DHUNTER_CONFIG_FILE="$hunterCfg" `
@@ -88,12 +102,11 @@ jobs:
             -DAPICORE=ON `
             -DETHDBUS=OFF
 
-
       - name: Build (Release)
         shell: pwsh
         working-directory: veil-progpow-miner
         run: |
-          cmake --build build --config Release -- /m
+          cmake --build build --config Release --target veilminer -- /m
 
       - name: Dump ethash/progpow headers from Hunter
         shell: pwsh
