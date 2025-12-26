@@ -60,29 +60,34 @@ jobs:
           path: veil-progpow-miner/cmake/cable
           fetch-depth: 1
 
-      - name: Configure (CMake, VS 2019)
+      - name: Configure (CMake, VS 2019) [source=veilminer]
         shell: pwsh
         working-directory: veil-progpow-miner
         run: |
           mkdir build | Out-Null
 
-          $root = Join-Path $env:GITHUB_WORKSPACE "veil-progpow-miner"
+          $root = (Get-Location).Path
           $mod_cmake  = (Join-Path $root "cmake").Replace('\','/')
           $mod_cable  = (Join-Path $root "cmake/cable").Replace('\','/')
           $mod_share  = (Join-Path $root "cmake/cable/share/cmake").Replace('\','/')
           $mod_cmake2 = (Join-Path $root "cmake/cable/cmake").Replace('\','/')
           $modulePath = "$mod_share;$mod_cmake2;$mod_cable;$mod_cmake"
 
-          Write-Host "CMAKE_MODULE_PATH=$modulePath"
+          $hunterCfg = (Join-Path $root "cmake/Hunter/config.cmake").Replace('\','/')
 
-          cmake -S . -B build -G "Visual Studio 16 2019" -A x64 `
+          Write-Host "CMAKE_MODULE_PATH=$modulePath"
+          Write-Host "HUNTER_CONFIG_FILE=$hunterCfg"
+
+          cmake -S veilminer -B build -G "Visual Studio 16 2019" -A x64 `
             -DCMAKE_MODULE_PATH="$modulePath" `
             -DHUNTER_ROOT="$env:HUNTER_ROOT" `
+            -DHUNTER_CONFIG_FILE="$hunterCfg" `
             -DETHASHCUDA=${{ matrix.cfg.ETHASHCUDA }} `
             -DETHASHCL=${{ matrix.cfg.ETHASHCL }} `
             -DETHASHCPU=${{ matrix.cfg.ETHASHCPU }} `
             -DAPICORE=ON `
             -DETHDBUS=OFF
+
 
       - name: Build (Release)
         shell: pwsh
