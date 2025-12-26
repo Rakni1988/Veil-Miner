@@ -52,19 +52,42 @@ jobs:
             hunter-${{ runner.os }}-${{ matrix.cfg.name }}-
             hunter-${{ runner.os }}-
 
-      - name: Purge cached ethash build (force rebuild)
+      - name: Purge Hunter ethash cache (hard)
         shell: pwsh
         run: |
-          $hunter = "$env:GITHUB_WORKSPACE\.hunter"
-          if (!(Test-Path $hunter)) { exit 0 }
+          $hunter = Join-Path $env:GITHUB_WORKSPACE ".hunter"
+          if (!(Test-Path $hunter)) {
+            Write-Host "No .hunter directory yet."
+            exit 0
+          }
 
-          Write-Host "Purging ethash from Hunter cache (if present)..."
-          Get-ChildItem -Path $hunter -Recurse -Directory -ErrorAction SilentlyContinue |
-            Where-Object { $_.FullName -match '\\_Base\\(Build|Download)\\' -and $_.Name -ieq 'ethash' } |
-            ForEach-Object {
-              Write-Host "Removing: $($_.FullName)"
-              Remove-Item -Recurse -Force $_.FullName
+          Write-Host "Hunter root: $hunter"
+
+          # Usuń katalogi ethash w _Base/Download, _Base/Build, _Base/Install (nie bawimy się w -like na FullName)
+          $targets = @(
+            Join-Path $hunter "_Base\Download\ethash",
+            Join-Path $hunter "_Base\Build\ethash",
+            Join-Path $hunter "_Base\Install\ethash"
+          )
+
+          foreach ($t in $targets) {
+            if (Test-Path $t) {
+              Write-Host "Removing: $t"
+              Remove-Item -Recurse -Force $t
+            } else {
+              Write-Host "Not found: $t"
             }
+          }
+
+          # Dodatkowo: usuń wszelkie katalogi, które mają ethash w nazwie pod _Base (czasem paczka jest w hashowanych folderach)
+          Get-ChildItem -Path (Join-Path $hunter "_Base") -Recurse -Directory -Force -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match "\\ethash(\\|$)" } |
+            ForEach-Object {
+              Write-Host "Removing extra: $($_.FullName)"
+              Remove-Item -Recurse -Force $_.FullName -ErrorAction SilentlyContinue
+            }
+
+          Write-Host "Done purge."
 
       - name: Checkout Cable (ethereum/cable) into cmake/cable
         uses: actions/checkout@v4
@@ -107,6 +130,20 @@ jobs:
         working-directory: veil-progpow-miner
         run: |
           cmake --build build --config Release --target veilminer -- /m
+
+      - name: Show Hunter ethash sources (debug)
+        shell: pwsh
+        run: |
+          $hunter = Join-Path $env:GITHUB_WORKSPACE ".hunter"
+          Write-Host "HUNTER_ROOT=$hunter"
+          if (!(Test-Path $hunter)) { exit 0 }
+
+          # Znajdź config.cmake od ethash (Hunter trzyma metadane w kilku miejscach)
+          $hits = Get-ChildItem -Path $hunter -Recurse -Force -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match "ethash" -and $_.Extension -in @(".cmake", ".txt") }
+
+          Write-Host "Some ethash-related files:"
+          $hits | Select-Object -First 50 FullName
 
       - name: Dump ethash/progpow headers from Hunter
         shell: pwsh
